@@ -31,3 +31,36 @@ def find_refs(text: str) -> List[RefMention]:
             subpoints=[sub] if sub else [],
         ))
     return out
+
+
+# ---------- Раскрытие диапазонов (ответ препода: «разворачивать») ----------
+# Буквы подпунктов в юр. практике: без ё, й, ъ, ы, ь.
+_LETTERS = "абвгдежзиклмнопрстуфхцчшщэюя"
+_RANGE = re.compile(r"^\s*([0-9.]+|[а-я])\s*[-–—]\s*([0-9.]+|[а-я])\s*$", re.IGNORECASE)
+
+
+def expand_range(value: str) -> List[str]:
+    """«43.2-6» -> 43.2 … 43.6; «43.2-43.6» -> то же; «1-3» -> 1, 2, 3; «а-в» -> а, б, в.
+
+    Если строка не похожа на диапазон или он некорректен — возвращает [value].
+    """
+    m = _RANGE.match(value)
+    if not m:
+        return [value]
+    left, right = m.group(1).lower(), m.group(2).lower()
+    if left in _LETTERS and right in _LETTERS:
+        i, j = _LETTERS.index(left), _LETTERS.index(right)
+        return list(_LETTERS[i:j + 1]) if i <= j else [value]
+    if not (left.replace(".", "").isdigit() and right.replace(".", "").isdigit()):
+        return [value]
+    head, _, last = left.rpartition(".")
+    # «43.2-6»: правая часть короче -> подставляем общий префикс; «43.2-43.6»: убираем префикс
+    if right.startswith(head + ".") and head:
+        right = right[len(head) + 1:]
+    if "." in right or not last.isdigit() or not right.isdigit():
+        return [value]
+    a, b = int(last), int(right)
+    if a > b or b - a > 50:  # защита от мусора вида «1-2024»
+        return [value]
+    prefix = head + "." if head else ""
+    return [f"{prefix}{k}" for k in range(a, b + 1)]
