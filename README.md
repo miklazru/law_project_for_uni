@@ -1,0 +1,71 @@
+# Law Links Service
+
+Сервис выделяет юридические ссылки из текста: `POST /detect` → `{"links": [{law_id, article, point_article, subpoint_article}, ...]}`.
+
+## Быстрый старт
+
+```bash
+docker build -t law-links-service .
+docker run -d -p 8978:8978 --name law-links-container law-links-service
+
+curl -X POST "http://localhost:8978/detect" \
+     -H "Content-Type: application/json" \
+     -d '{"text": "Согласно пп. 1 п. 1 ст. 374 НК РФ"}'
+```
+
+Без Docker:
+```bash
+pip install -r requirements-dev.txt
+uvicorn app.main:app --port 8978 --reload      # Swagger: http://localhost:8978/docs
+```
+
+## Как устроено
+
+```
+text ──► laws.find_laws(text)  ──► [LawMention(start, end, law_id)]      роль 3
+     └─► refs.find_refs(text)  ──► [RefMention(start, end, articles,      роль 4
+                                               points, subpoints)]
+                linker.link(refs, laws) ──► [LawLink]                     роль 5
+```
+
+| Файл | Кто | Что |
+|---|---|---|
+| `app/schemas.py` | все | **контракт**: менять только по договорённости |
+| `app/laws.py` | роль 3 | поиск законов: алиасы, склонения, неоднозначности |
+| `app/refs.py` | роль 4 | ст./п./пп./ч., перечисления, диапазоны |
+| `app/linker.py` | роль 5 | привязка ссылки к закону, шум, «того же кодекса» |
+| `app/pipeline.py`, `app/main.py` | роль 1 | склейка и API |
+| `data/*.jsonl`, `scripts/evaluate.py` | роль 2 | разметка и метрика |
+
+Сейчас в каждом модуле стоит **наивная заглушка**, но пайплайн работает целиком. Заменяйте свой модуль, сохраняя сигнатуру функции, и проверяйте метрику.
+
+## Проверка перед каждым PR
+
+```bash
+pytest -q                                              # сервис не сломан
+python -m scripts.evaluate data/*.jsonl --errors 10    # качество + разбор ошибок
+```
+Перед сдачей тимлид дополнительно прогоняет нагрузочный тест (Docker должен быть запущен):
+```bash
+python -m scripts.loadtest --n 2000 --data data/seed.jsonl   # лимит 300 с, целимся в ≤ 100 с
+```
+
+## Формат разметки (`data/*.jsonl`)
+
+Одна строка — один текст:
+```json
+{"text": "...", "links": [{"law_id": 15, "article": "374", "point_article": "1", "subpoint_article": "1"}]}
+```
+Отсутствующее поле — `null`. Все значения, кроме `law_id`, записываются строками.
+
+## Правила работы
+- Каждый работает в своей ветке, в `main` попадает только через PR, PR вливает тимлид.
+- PR не должен ронять F1 на `data/` и замедлять сервис больше чем на ~20%.
+- Новые зависимости добавляйте в `requirements.txt` с фиксированной версией и проверяйте, что Docker собирается.
+- Не тяните тяжёлые модели без согласования: лимит 5 минут на 2000 текстов.
+
+## Открытые вопросы к преподу
+1. Метрика: F1 по точному совпадению всех 4 полей? Важен ли порядок, считаются ли дубли?
+2. Если закона нет в базе: пропускать ссылку или ставить `law_id = null`? (сейчас пропускаем)
+3. Диапазоны: оставлять одной строкой «43.2-6» или разворачивать?
+4. Какие ресурсы у контейнера (CPU/RAM)? Можно ли скачивать модели при сборке?
