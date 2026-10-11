@@ -45,6 +45,11 @@ text ──► laws.find_laws(text)  ──► [LawMention(start, end, law_id)] 
 pytest -q                                              # сервис не сломан
 python -m scripts.evaluate data/*.jsonl --errors 10    # ACC (главное) + P/R/F1 + разбор ошибок
 ```
+Проверка устойчивости к шуму (имитация «упоротых» бенчей 3–4: латиница вместо кириллицы, регистр, пробелы, опечатки):
+```bash
+python -m scripts.make_noisy data/level1.jsonl data/level2.jsonl data/level3.jsonl data/traps.jsonl --out data/noisy
+python -m scripts.evaluate data/noisy/*.jsonl --errors 10
+```
 Перед сдачей тимлид дополнительно прогоняет нагрузочный тест (Docker должен быть запущен):
 ```bash
 python -m scripts.loadtest --n 2000 --data data/seed.jsonl   # лимит 300 с, целимся в ≤ 60 с

@@ -3,12 +3,13 @@ from contextlib import asynccontextmanager
 import uvicorn
 from fastapi import FastAPI
 
-from app.pipeline import detect, get_index
+from app.pipeline import detect, get_codex_ids, get_index
 from app.schemas import LinksResponse, TextRequest
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    get_codex_ids()
     get_index()  # прогреваем индекс законов при старте, а не на первом запросе
     yield
 
