@@ -89,3 +89,10 @@ def test_cartesian_product():
     out = link([ref(t, "пп. 1, 2 п. 3 ст. 4", ["4"], ["3"], ["1", "2"])],
                [law(t, "ГК РФ", GK)], t, CODEX)
     assert tuples(out) == [(GK, "4", "3", "1"), (GK, "4", "3", "2")]
+
+
+def test_near_does_not_jump_over_other_ref():
+    t = "см. п. 3 договора, в ст. 10 ГК РФ"
+    out = link([ref(t, "п. 3", None, ["3"]), ref(t, "ст. 10", ["10"])],
+               [law(t, "ГК РФ", GK)], t, CODEX)
+    assert tuples(out) == [(GK, "10", None, None)]

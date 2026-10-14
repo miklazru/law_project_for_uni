@@ -104,3 +104,10 @@ def test_multiple_citations_in_sentence():
         (["162"], ["2"], []),
         (["163"], ["3"], ["б"]),
     ]
+
+
+def test_preposition_v_between_segments():
+    from app.pipeline import detect
+    t = "в подпунктах а, б и с пункта 3.345, 23 в статье 66 НК РФ"
+    got = {(l.article, l.point_article, l.subpoint_article) for l in detect(t)}
+    assert got == {("66", p, s) for p in ("3.345", "23") for s in ("а", "б", "с")}

@@ -96,9 +96,13 @@ def _resolve_anaphora(ref, refs, laws, text, codex_ids) -> Optional[int]:
     return None
 
 
-def _resolve_near(ref, laws, text) -> Optional[int]:
+def _resolve_near(ref, refs, laws, text) -> Optional[int]:
     nxt = next((l for l in laws if l.start >= ref.end), None)
     if nxt is None or nxt.start - ref.end > NEAR_GAP:
+        return None
+    # между ссылкой и законом другая ссылка -> закон относится к ней:
+    # «п. 3 договора, в ст. 10 ГК РФ»
+    if any(r is not ref and r.start >= ref.end and r.end <= nxt.start for r in refs):
         return None
     gap = text[ref.end:nxt.start + 1]
     if _SENT_END.search(gap[1:] if gap.startswith(".") else gap):
@@ -117,7 +121,7 @@ def link(refs: List[RefMention], laws: List[LawMention], text: str = "",
         if text:
             law_id = (_resolve_right(ref, refs, laws, text)
                       or _resolve_anaphora(ref, refs, laws, text, codex_ids)
-                      or _resolve_near(ref, laws, text))
+                      or _resolve_near(ref, refs, laws, text))
         else:  # обратная совместимость: без текста — ближайший закон справа
             nxt = next((l for l in laws if 0 <= l.start - ref.end <= MAX_GAP), None)
             law_id = nxt.law_id if nxt else None
