@@ -18,15 +18,32 @@
 
 ## Запуск
 
+Сборка и запуск одинаковые на Linux, macOS и Windows (нужен запущенный Docker; на Linux при необходимости с `sudo`):
+
 ```bash
 docker build -t law-links-service .
 docker run -d -p 8978:8978 --name law-links-container law-links-service
+```
 
+Проще всего проверить сервис через Swagger: http://localhost:8978/docs → `POST /detect` → «Try it out». Проверка живости: `GET /health`.
+
+**Запрос из терминала — Linux / macOS:**
+```bash
 curl -X POST "http://localhost:8978/detect" \
      -H "Content-Type: application/json" \
      -d '{"text": "Согласно пп. 1 п. 1 ст. 374 НК РФ и ст. 151 настоящего Кодекса"}'
 ```
 
+**Запрос из терминала — Windows (PowerShell):**
+```powershell
+$body = @{ text = "Согласно пп. 1 п. 1 ст. 374 НК РФ и ст. 151 настоящего Кодекса" } | ConvertTo-Json
+Invoke-RestMethod -Uri "http://localhost:8978/detect" -Method Post `
+    -ContentType "application/json; charset=utf-8" `
+    -Body ([System.Text.Encoding]::UTF8.GetBytes($body)) | ConvertTo-Json -Depth 5
+```
+(`curl` в PowerShell — это другая команда, и кириллица в ней ломается, поэтому `Invoke-RestMethod`.)
+
+Ожидаемый ответ:
 ```json
 {"links": [
   {"law_id": 15, "article": "374", "point_article": "1", "subpoint_article": "1"},
@@ -34,13 +51,20 @@ curl -X POST "http://localhost:8978/detect" \
 ]}
 ```
 
-Swagger: http://localhost:8978/docs. Проверка живости: `GET /health`.
+Остановить: `docker rm -f law-links-container`.
 
-Без Docker:
+**Без Docker** (Python 3.10+):
 ```bash
-pip install -r requirements.txt
-uvicorn app.main:app --host 0.0.0.0 --port 8978
+python -m pip install -r requirements.txt               # Windows: py -m pip install -r requirements.txt
+python -m uvicorn app.main:app --host 0.0.0.0 --port 8978   # Windows: py -m uvicorn app.main:app --host 0.0.0.0 --port 8978
 ```
+
+Если Docker не может скачать базовый образ (`connection reset by peer`), можно взять его из зеркала:
+```bash
+docker pull mirror.gcr.io/library/python:3.12-slim
+docker tag mirror.gcr.io/library/python:3.12-slim python:3.12-slim
+```
+после чего собрать образ как обычно.
 
 ## Как устроено
 
